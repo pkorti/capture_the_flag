@@ -1,68 +1,67 @@
-import depthai as dai
+import os
 import subprocess
 import time
 
+import depthai as dai
 from ultralytics import YOLO
-
-
-# ============================================================
-# SETTINGS
-# ============================================================
-
-TRIGGER_AREA = 1000
-SPOTTED_FRAMES = 3
-
-IMAGE_WIDTH = 640
-IMAGE_HEIGHT = 480
-IMAGE_CENTER = IMAGE_WIDTH // 2
-
-CENTER_DEADBAND = 35
-
-APPROACH_THROTTLE = 0.18
-HIT_THROTTLE = 0.18
-
-# Stop for 3 seconds immediately before hitting the flag
-STOP_TIME = 3.0
-
-REVERSE_THROTTLE = -0.15
-REVERSE_TIME = 3.0
-
-STEERING_GAIN = 0.0020
-MAX_STEERING = 0.35
-
-# When the YOLO bounding box reaches this size and is centered,
-# stop for 3 seconds before hitting.
-HIT_START_AREA = 30000
-
-LOST_FRAMES_FOR_KNOCKDOWN = 8
-MAX_HIT_TIME = 2.0
-
-LOST_FRAMES_BEFORE_ABORT = 30
-
-SPEAKER_DEVICE = "plughw:2,0"
 
 
 # ============================================================
 # YOLO
 # ============================================================
 
-YOLO_MODEL_PATH = "/home/team7/gpscar/weights.pt"
+# Put your trained YOLO weights in ~/gpscar and name them best.pt,
+# OR set YOLO_MODEL_PATH before starting manage.py.
+YOLO_MODEL_PATH = os.environ.get("YOLO_MODEL_PATH", "best.pt")
+YOLO_CONFIDENCE = 0.50
 
-YOLO_CONF = 0.25
+VALID_FLAG_CLASSES = {
+    "PINK",
+    "YELLOW",
+    "ORANGE",
+    "BLUE",
+}
 
-YOLO_MODEL = YOLO(YOLO_MODEL_PATH)
+model = YOLO(YOLO_MODEL_PATH)
 
 
 # ============================================================
-# SPEAKER
+# FLAG MISSION PARAMETERS
+# ============================================================
+
+MIN_AREA = 250
+TRIGGER_AREA = 1000
+SPOTTED_FRAMES = 3
+
+IMAGE_WIDTH = 640
+IMAGE_HEIGHT = 480
+IMAGE_CENTER = IMAGE_WIDTH // 2
+CENTER_DEADBAND = 35
+
+APPROACH_THROTTLE = 0.18
+HIT_THROTTLE = 0.18
+REVERSE_THROTTLE = -0.15
+
+STEERING_GAIN = 0.0020
+MAX_STEERING = 0.35
+
+HIT_START_AREA = 30000
+LOST_FRAMES_FOR_KNOCKDOWN = 8
+LOST_FRAMES_BEFORE_ABORT = 30
+MAX_HIT_TIME = 2.0
+REVERSE_TIME = 3.0
+
+SPEAKER_DEVICE = "plughw:2,0"
+
+
+# ============================================================
+# AUDIO
 # ============================================================
 
 def speak(text):
-
     print(f"SPEAKING: {text}")
 
     try:
-
         espeak_process = subprocess.Popen(
             ["espeak", "--stdout", text],
             stdout=subprocess.PIPE,
@@ -79,82 +78,65 @@ def speak(text):
         espeak_process.stdout.close()
 
     except Exception as e:
-
         print("Speech error:", e)
 
 
 # ============================================================
-# YOLO FLAG DETECTION
-#
-# Model classes:
-#
-# 0 = blue_flag
-# 1 = orange_flag
-# 2 = pink_flag
-# 3 = yellow_flag
-#
-# If multiple detections are visible, use the largest box.
+# YOLO FLAG DETECTOR
 # ============================================================
 
 def detect_flag(frame):
+    """
+    Run YOLO on one OAK-D BGR frame.
 
-    results = YOLO_MODEL.predict(
+    Returns the same dictionary format that the existing mission
+    state machine already expects:
+        color, cx, cy, x, y, w, h, area, confidence
+
+    Only the four mission flag classes are accepted.
+    """
+
+    results = model.predict(
         source=frame,
-        conf=YOLO_CONF,
+        conf=YOLO_CONFIDENCE,
         verbose=False
     )
 
     best_detection = None
-    best_area = 0
+    best_confidence = 0.0
 
     for result in results:
-
         if result.boxes is None:
             continue
 
         for box in result.boxes:
-
             confidence = float(box.conf[0])
+            class_id = int(box.cls[0])
 
-            if confidence < YOLO_CONF:
+            color_name = str(model.names[class_id]).strip().upper()
+
+            if color_name not in VALID_FLAG_CLASSES:
                 continue
 
-            class_id = int(box.cls[0])
-            class_name = YOLO_MODEL.names[class_id]
-
-            color = (
-                class_name
-                .replace("_flag", "")
-                .upper()
+            x1, y1, x2, y2 = map(
+                int,
+                box.xyxy[0].tolist()
             )
-
-            x1, y1, x2, y2 = (
-                box.xyxy[0]
-                .cpu()
-                .numpy()
-            )
-
-            x1 = int(x1)
-            y1 = int(y1)
-            x2 = int(x2)
-            y2 = int(y2)
 
             w = max(0, x2 - x1)
             h = max(0, y2 - y1)
-
-            cx = x1 + (w // 2)
-            cy = y1 + (h // 2)
-
             area = w * h
 
-            if area > best_area:
+            if area < MIN_AREA:
+                continue
 
-                best_area = area
+            if confidence > best_confidence:
+                best_confidence = confidence
 
                 best_detection = {
-                    "color": color,
-                    "cx": cx,
-                    "cy": cy,
+                    "color": color_name,
+                    "cx": (x1 + x2) // 2,
+                    "cy": (y1 + y2) // 2,
                     "x": x1,
                     "y": y1,
                     "w": w,
@@ -176,7 +158,6 @@ class FlagMissionPart:
 
         self.car_x = None
         self.car_y = None
-
         self.running = True
 
         self.flag_active = False
@@ -185,7 +166,6 @@ class FlagMissionPart:
 
         self.GPS = "GPS"
         self.TRACKING = "TRACKING"
-        self.STOP = "STOP"
         self.HIT = "HIT"
         self.REVERSE = "REVERSE"
 
@@ -197,16 +177,17 @@ class FlagMissionPart:
         self.active_color = None
         self.lost_frames = 0
 
-        self.stop_start_time = None
         self.hit_start_time = None
         self.reverse_start_time = None
 
         print("")
         print("====================================")
-        print(" FLAG MISSION PART INITIALIZED")
-        print(" YOLO DETECTOR ACTIVE")
-        print(" GPS -> TRACK -> STOP -> HIT -> REVERSE -> GPS")
+        print(" YOLO FLAG MISSION PART INITIALIZED")
+        print(" GPS -> TRACK -> HIT -> REVERSE -> GPS")
         print("====================================")
+        print("")
+        print(f"YOLO MODEL: {YOLO_MODEL_PATH}")
+        print(f"YOLO CONFIDENCE: {YOLO_CONFIDENCE}")
         print("")
 
         # ----------------------------------------------------
@@ -229,7 +210,6 @@ class FlagMissionPart:
         )
 
         camera.setFps(30)
-        camera.initialControl.setManualExposure(2000, 400)
 
         xout = self.pipeline.createXLinkOut()
 
@@ -251,7 +231,6 @@ class FlagMissionPart:
             blocking=False
         )
 
-
     # ========================================================
     # CAMERA THREAD
     # ========================================================
@@ -263,7 +242,6 @@ class FlagMissionPart:
             img = self.camera_queue.tryGet()
 
             if img is None:
-
                 time.sleep(0.005)
                 continue
 
@@ -272,7 +250,6 @@ class FlagMissionPart:
             detection = detect_flag(frame)
 
             if detection is not None:
-
                 print(
                     f"YOLO DETECT {detection['color']} | "
                     f"conf={detection['confidence']:.2f} | "
@@ -280,8 +257,9 @@ class FlagMissionPart:
                     f"cx={detection['cx']}"
                 )
 
-            self.process_detection(detection)
-
+            self.process_detection(
+                detection
+            )
 
     # ========================================================
     # STEERING
@@ -292,10 +270,11 @@ class FlagMissionPart:
         error = cx - IMAGE_CENTER
 
         if abs(error) < CENTER_DEADBAND:
-
             return 0.0
 
-        steering = error * STEERING_GAIN
+        steering = (
+            error * STEERING_GAIN
+        )
 
         steering = max(
             -MAX_STEERING,
@@ -306,7 +285,6 @@ class FlagMissionPart:
         )
 
         return steering
-
 
     # ========================================================
     # RETURN TO GPS
@@ -319,18 +297,14 @@ class FlagMissionPart:
         self.flag_throttle = 0.0
 
         self.active_color = None
-
         self.candidate_color = None
         self.candidate_frames = 0
-
         self.lost_frames = 0
 
-        self.stop_start_time = None
         self.hit_start_time = None
         self.reverse_start_time = None
 
         self.state = self.GPS
-
 
     # ========================================================
     # STATE MACHINE
@@ -352,7 +326,6 @@ class FlagMissionPart:
                 detection is None
                 or detection["area"] < TRIGGER_AREA
             ):
-
                 self.candidate_color = None
                 self.candidate_frames = 0
                 return
@@ -360,11 +333,9 @@ class FlagMissionPart:
             color = detection["color"]
 
             if color == self.candidate_color:
-
                 self.candidate_frames += 1
 
             else:
-
                 self.candidate_color = color
                 self.candidate_frames = 1
 
@@ -388,16 +359,13 @@ class FlagMissionPart:
                 )
 
                 self.flag_active = True
-
                 self.state = self.TRACKING
 
                 self.candidate_color = None
                 self.candidate_frames = 0
-
                 self.lost_frames = 0
 
             return
-
 
         # ----------------------------------------------------
         # TRACKING
@@ -418,10 +386,14 @@ class FlagMissionPart:
                 cx = detection["cx"]
                 area = detection["area"]
 
-                steering = self.steering_to_center(cx)
+                steering = (
+                    self.steering_to_center(cx)
+                )
 
                 self.flag_steering = steering
-                self.flag_throttle = APPROACH_THROTTLE
+                self.flag_throttle = (
+                    APPROACH_THROTTLE
+                )
 
                 print(
                     f"FLAG TRACK {self.active_color} | "
@@ -432,30 +404,38 @@ class FlagMissionPart:
 
                 if (
                     area >= HIT_START_AREA
+                    and abs(
+                        cx - IMAGE_CENTER
+                    ) <= CENTER_DEADBAND
                 ):
 
                     print("")
                     print("============================")
                     print(
-                        f"STOPPING BEFORE {self.active_color} FLAG"
+                        f"HITTING {self.active_color} FLAG"
                     )
-                    print("WAITING 3 SECONDS")
                     print("============================")
                     print("")
 
                     self.flag_steering = 0.0
-                    self.flag_throttle = 0.0
+                    self.flag_throttle = (
+                        HIT_THROTTLE
+                    )
 
-                    self.stop_start_time = time.time()
+                    self.lost_frames = 0
+                    self.hit_start_time = (
+                        time.time()
+                    )
 
-                    self.state = self.STOP
+                    self.state = self.HIT
 
             else:
 
                 self.lost_frames += 1
-
                 self.flag_steering = 0.0
-                self.flag_throttle = APPROACH_THROTTLE
+                self.flag_throttle = (
+                    APPROACH_THROTTLE
+                )
 
                 if (
                     self.lost_frames
@@ -467,53 +447,14 @@ class FlagMissionPart:
                         f"LOST {self.active_color} "
                         "BEFORE CONTACT"
                     )
-                    print("RETURNING TO GPS")
+                    print(
+                        "RETURNING TO GPS"
+                    )
                     print("")
 
                     self.return_to_gps()
 
             return
-
-
-        # ----------------------------------------------------
-        # STOP FOR 3 SECONDS
-        # ----------------------------------------------------
-
-        elif self.state == self.STOP:
-
-            self.flag_active = True
-
-            self.flag_steering = 0.0
-            self.flag_throttle = 0.0
-
-            if (
-                self.stop_start_time is not None
-                and (
-                    time.time()
-                    - self.stop_start_time
-                ) >= STOP_TIME
-            ):
-
-                print("")
-                print("============================")
-                print("3 SECOND STOP COMPLETE")
-                print(
-                    f"HITTING {self.active_color} FLAG"
-                )
-                print("============================")
-                print("")
-
-                self.flag_steering = 0.0
-                self.flag_throttle = HIT_THROTTLE
-
-                self.lost_frames = 0
-
-                self.hit_start_time = time.time()
-
-                self.state = self.HIT
-
-            return
-
 
         # ----------------------------------------------------
         # HIT
@@ -522,9 +463,10 @@ class FlagMissionPart:
         elif self.state == self.HIT:
 
             self.flag_active = True
-
             self.flag_steering = 0.0
-            self.flag_throttle = HIT_THROTTLE
+            self.flag_throttle = (
+                HIT_THROTTLE
+            )
 
             if (
                 detection is not None
@@ -538,21 +480,19 @@ class FlagMissionPart:
 
                 self.lost_frames += 1
 
-            if self.hit_start_time is not None:
-
-                hit_elapsed = (
-                    time.time()
-                    - self.hit_start_time
-                )
-
-            else:
-
-                hit_elapsed = 0.0
+            hit_elapsed = (
+                time.time()
+                - self.hit_start_time
+                if self.hit_start_time
+                is not None
+                else 0.0
+            )
 
             if (
                 self.lost_frames
                 >= LOST_FRAMES_FOR_KNOCKDOWN
-                or hit_elapsed >= MAX_HIT_TIME
+                or hit_elapsed
+                >= MAX_HIT_TIME
             ):
 
                 print("")
@@ -565,19 +505,21 @@ class FlagMissionPart:
                 print("")
 
                 speak(
-                    f"{self.active_color.lower()} "
-                    "flag captured"
+                    f"{self.active_color.lower()} flag captured"
                 )
 
                 self.flag_steering = 0.0
-                self.flag_throttle = REVERSE_THROTTLE
+                self.flag_throttle = (
+                    REVERSE_THROTTLE
+                )
 
-                self.reverse_start_time = time.time()
+                self.reverse_start_time = (
+                    time.time()
+                )
 
                 self.state = self.REVERSE
 
             return
-
 
         # ----------------------------------------------------
         # REVERSE
@@ -586,16 +528,17 @@ class FlagMissionPart:
         elif self.state == self.REVERSE:
 
             self.flag_active = True
-
             self.flag_steering = 0.0
-            self.flag_throttle = REVERSE_THROTTLE
+            self.flag_throttle = (
+                REVERSE_THROTTLE
+            )
 
             if (
-                self.reverse_start_time is not None
-                and (
-                    time.time()
-                    - self.reverse_start_time
-                ) >= REVERSE_TIME
+                self.reverse_start_time
+                is not None
+                and time.time()
+                - self.reverse_start_time
+                >= REVERSE_TIME
             ):
 
                 print("")
@@ -609,9 +552,8 @@ class FlagMissionPart:
 
             return
 
-
     # ========================================================
-    # DONKEYCAR OUTPUT
+    # DONKEYCAR THREADED OUTPUT
     # ========================================================
 
     def run_threaded(
@@ -629,7 +571,6 @@ class FlagMissionPart:
             self.flag_throttle
         )
 
-
     # ========================================================
     # SHUTDOWN
     # ========================================================
@@ -637,21 +578,21 @@ class FlagMissionPart:
     def shutdown(self):
 
         print("")
-        print("Shutting down flag detector.")
+        print(
+            "Shutting down YOLO flag detector."
+        )
 
         self.running = False
 
         try:
-
             self.device.close()
 
         except Exception:
-
             pass
 
 
 # ============================================================
-# GPS / FLAG SELECTOR
+# GPS / FLAG CONTROL SELECTOR
 # ============================================================
 
 class FlagDriveSelector:
@@ -666,8 +607,8 @@ class FlagDriveSelector:
         flag_throttle
     ):
 
-        # Flag controller can ONLY override GPS
-        # during full autonomous LOCAL mode.
+        # Flag controller is ONLY allowed to control
+        # the vehicle during full autonomous LOCAL mode.
 
         if (
             user_mode == "local"
