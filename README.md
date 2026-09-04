@@ -2,9 +2,6 @@
 
 UC San Diego MAE/ECE 148 Team 7 project integrating RTK GPS path following, DonkeyCar autonomous control, OAK-D flag detection, and audio feedback on a Raspberry Pi 5 vehicle.
 
-> **Safety:** This repository controls a physical vehicle. Always test with adequate clearance, keep an emergency stop method available, and verify the current DonkeyCar mode before applying throttle.  
-> `local_angle` can command steering. `local` can command both steering and throttle.
-
 ## System Overview
 
 The system combines:
@@ -35,10 +32,10 @@ TRACK / CENTER FLAG
 APPROACH FLAG
       |
       v
-HIT FLAG
+   HIT FLAG
       |
       v
-REVERSE
+   REVERSE
       |
       v
 RETURN TO GPS PATH
@@ -91,7 +88,6 @@ cd ~/gpscar
 python3 manage.py drive
 ```
 
-Starting `manage.py drive` activates the vehicle control software. Keep the vehicle in `user` mode until intentionally beginning an autonomous test.
 
 ---
 
@@ -686,7 +682,7 @@ __pycache__/
 
 ---
 
-# Current Status
+# Steps
 
 - [x] Point One RTK GPS receiving corrections
 - [x] GPS position available inside DonkeyCar
@@ -699,10 +695,10 @@ __pycache__/
 - [x] Flag approach / hit / reverse state machine
 - [x] Jabra audio announcements
 - [x] GPS/flag control selector integration
-- [ ] Install/export final YOLO model on Raspberry Pi
-- [ ] Replace HSV `detect_flag()` with YOLO inference
-- [ ] Validate YOLO detections inside `manage.py`
-- [ ] Final end-to-end GPS + YOLO flag mission validation
+- [x] Install/export final YOLO model on Raspberry Pi
+- [x] Replace HSV `detect_flag()` with YOLO inference
+- [x] Validate YOLO detections inside `manage.py`
+- [x] Final end-to-end GPS + YOLO flag mission validation
 
 # Team
 
