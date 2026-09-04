@@ -1,69 +1,63 @@
-# Team 7 Autonomous GPS + Flag Detection Robot
+# Team 7 Autonomous GPS + YOLO Flag Detection Robot
 
-UC San Diego MAE/ECE 148 Team 7 project integrating RTK GPS path
-following, DonkeyCar autonomous control, OAK-D flag detection, and audio
-feedback on a Raspberry Pi 5 vehicle.
+UC San Diego MAE/ECE 148 Team 7 project integrating RTK GPS path following, DonkeyCar autonomous control, OAK-D flag detection, and audio feedback on a Raspberry Pi 5 vehicle.
 
-> **Safety:** This repository controls a physical vehicle. Always test
-> with adequate clearance, keep an emergency stop method available, and
-> verify the current DonkeyCar mode before applying throttle.
-> `local_angle` can command steering. `local` can command both steering
-> and throttle.
+> **Safety:** This repository controls a physical vehicle. Always test with adequate clearance, keep an emergency stop method available, and verify the current DonkeyCar mode before applying throttle.  
+> `local_angle` can command steering. `local` can command both steering and throttle.
 
 ## System Overview
 
 The system combines:
 
--   Raspberry Pi 5
--   DonkeyCar
--   Point One Navigation RTK GPS
--   VESC motor/steering controller
--   Logitech F710 gamepad
--   Luxonis OAK-D camera
--   Jabra SPEAK 510 USB speaker
--   GPS path recording and autonomous path following
--   Yellow triangular flag detection and temporary flag-approach
-    override
+- Raspberry Pi 5
+- DonkeyCar
+- Point One Navigation RTK GPS
+- VESC motor/steering controller
+- Logitech F710 gamepad
+- Luxonis OAK-D camera
+- Jabra SPEAK 510 USB speaker
+- GPS path recording and autonomous path following
+- YOLO-based four-color flag detection
+- Automatic flag approach, hit, reverse, and return to GPS
 
 Mission flow:
 
-``` text
+```text
 FOLLOW GPS PATH
       |
       v
-FLAG SPOTTED
+YOLO DETECTS FLAG
+      |
+      v
+TRACK / CENTER FLAG
       |
       v
 APPROACH FLAG
       |
       v
-CAPTURE FLAG
+HIT FLAG
       |
       v
-DRIVE THROUGH
+REVERSE
       |
       v
 RETURN TO GPS PATH
 ```
 
-The flag system does not directly command the VESC. It supplies steering
-and throttle values to a selector that temporarily overrides the GPS
-follower when a flag mission is active.
-
 ## Hardware
 
-  Component           Purpose
-  ------------------- -------------------------------------
-  Raspberry Pi 5      Main onboard computer
-  Point One RTK GPS   Vehicle localization
-  VESC                Steering and throttle control
-  Logitech F710       Manual driving and mission controls
-  OAK-D               Flag detection
-  Jabra SPEAK 510     Audio announcements
+| Component | Purpose |
+|---|---|
+| Raspberry Pi 5 | Main onboard computer |
+| Point One RTK GPS | Vehicle localization |
+| VESC | Steering and throttle control |
+| Logitech F710 | Manual driving and mission controls |
+| OAK-D | Camera for YOLO flag detection |
+| Jabra SPEAK 510 | Audio announcements |
 
 Typical Team 7 device assignments:
 
-``` text
+```text
 Point One runner:       /dev/ttyUSB0
 DonkeyCar GPS NMEA:     /dev/ttyUSB1
 VESC:                   /dev/ttyACM0
@@ -72,11 +66,13 @@ Logitech F710:          /dev/input/js0
 
 Device numbering can change after reconnecting hardware.
 
+---
+
 ## Software Environments
 
-### Point One RTK runner
+### Point One RTK Runner
 
-``` bash
+```bash
 cd ~/quectel/p1_runner
 conda activate py37
 python3 bin/runner.py --device-id <DEVICE_ID> --polaris <POLARIS_PASSWORD> --device-port /dev/ttyUSB0
@@ -84,30 +80,24 @@ python3 bin/runner.py --device-id <DEVICE_ID> --polaris <POLARIS_PASSWORD> --dev
 
 Keep this terminal running while recording or following GPS paths.
 
-**Do not commit Point One credentials to GitHub.** Store them privately
-or use environment variables/secrets.
-
-A healthy RTK connection should show a valid RTK solution, such as
-`RTKFloat`, and incoming correction data.
-
 ### DonkeyCar
 
 From another SSH terminal:
 
-``` bash
+```bash
 conda deactivate
 source ~/env/bin/activate
 cd ~/gpscar
 python3 manage.py drive
 ```
 
-Starting `manage.py drive` activates the vehicle control software. Keep
-the vehicle in `user` mode until intentionally beginning an autonomous
-test.
+Starting `manage.py drive` activates the vehicle control software. Keep the vehicle in `user` mode until intentionally beginning an autonomous test.
+
+---
 
 ## Important DonkeyCar Configuration
 
-``` python
+```python
 GPS_SERIAL = "/dev/ttyUSB1"
 GPS_SERIAL_BAUDRATE = 460800
 GPS_DEBUG = True
@@ -131,7 +121,7 @@ CAMERA_TYPE = "MOCK"
 
 Working GPS path-following settings:
 
-``` python
+```python
 PID_P = 0.15
 PID_I = 0.0
 PID_D = 0.30
@@ -142,52 +132,61 @@ PATH_LOOK_AHEAD = 1
 PATH_LOOK_BEHIND = 1
 ```
 
-These values are specific to Team 7's vehicle and test setup. Retune
-cautiously if the mechanical configuration, speed, course, or steering
-geometry changes.
+These values are specific to Team 7's vehicle and test setup.
+
+---
 
 ## Logitech F710 Controls
 
-  Button   Function
-  -------- -------------------------------
-  B        Reset GPS origin
-  LB       Toggle path recording
-  RB       Save path
-  A        Load path
-  Y        Erase path
-  START    Change DonkeyCar driving mode
+| Button | Function |
+|---|---|
+| B | Reset GPS origin |
+| LB | Toggle path recording |
+| RB | Save path |
+| A | Load path |
+| Y | Erase path |
+| START | Change DonkeyCar driving mode |
 
 The controller should be in **X mode** using the physical X/D switch.
+
+---
 
 ## DonkeyCar Driving Modes
 
 ### `user`
 
-Manual steering and throttle. Use this to position the vehicle, reset
-the GPS origin, and record the course.
+Manual steering and throttle.
+
+Use this mode to:
+
+- Position the vehicle
+- Reset GPS origin
+- Record a GPS path
+- Safely initialize the system
 
 ### `local_angle`
 
 Autonomous steering is enabled.
 
-**The steering can move automatically.** Use this as an intermediate
-safety check before autonomous throttle.
+The vehicle can steer automatically, but the user retains throttle control.
 
 ### `local`
 
 Full autonomous operation.
 
-**The vehicle can steer and drive forward automatically.**
+The vehicle can automatically control both steering and throttle.
 
-START cycles through the configured modes. Confirm the displayed mode
-instead of assuming which mode is active.
+The flag controller is only allowed to override GPS control while the vehicle is in `local`.
+
+---
 
 ## Recording a GPS Path
 
-Start the Point One runner first and leave it running. Then start
-DonkeyCar:
+Start the Point One runner first.
 
-``` bash
+Then start DonkeyCar:
+
+```bash
 cd ~/gpscar
 python3 manage.py drive
 ```
@@ -196,123 +195,296 @@ Remain in `user` mode.
 
 At the exact physical starting point:
 
-1.  Press **B once** to reset the GPS origin.
-2.  Verify `pos/x` and `pos/y` are near zero.
-3.  Press **LB once** to begin recording.
-4.  Manually drive one smooth lap.
-5.  Return to the starting point and stop.
-6.  Press **LB once** to stop recording.
-7.  Press **RB once** to save the path.
+1. Press **B once** to reset the GPS origin.
+2. Verify `pos/x` and `pos/y` are near zero.
+3. Press **LB once** to begin recording.
+4. Manually drive one smooth lap.
+5. Return to the starting point.
+6. Press **LB once** to stop recording.
+7. Press **RB once** to save the path.
 
 The path is saved as:
 
-``` text
+```text
 ~/gpscar/donkey_path.csv
 ```
 
-A successful Team 7 recording contained approximately 352 points. The
-exact number can vary.
+The current successful Team 7 path contains approximately **352 points**.
 
-A safe way to check the saved point count from another terminal is:
-
-``` bash
-wc -l ~/gpscar/donkey_path.csv
-```
+---
 
 ## Running the Saved GPS Path
 
-Place the vehicle at the same physical starting point used during
-recording.
+Place the vehicle at the same physical starting point used during recording.
 
 While in `user` mode:
 
-1.  Press **B once** at the physical start point.
-2.  Confirm `pos/x` and `pos/y` are near zero.
-3.  Make sure the saved path is loaded. Use **A** when a manual path
-    load is needed.
-4.  Press **START once** to enter `local_angle`.
-5.  Check that autonomous steering behaves reasonably.
-6.  Press **START again** to enter `local` only when the area is clear
-    and the vehicle is ready for autonomous motion.
+1. Press **B once** at the physical start point.
+2. Verify `pos/x` and `pos/y` are near zero.
+3. Make sure the saved path is loaded.
+4. Press **START once** to enter `local_angle`.
+5. Verify autonomous steering behaves correctly.
+6. Press **START again** to enter `local`.
 
-## Why the B Reset Matters
+The car should now follow the recorded GPS path.
 
-The GPS receiver reports absolute UTM coordinates, while the recorded
-DonkeyCar path is origin-relative.
+---
 
-Pressing **B** while `manage.py` is running resets DonkeyCar's local
-origin. The Point One terminal will continue displaying absolute
-coordinates. That is normal.
+# YOLO Flag Detection
 
-Always reset the origin at the same physical starting point before
-autonomous playback.
+The flag detector uses the OAK-D camera and a YOLO model.
 
-## Flag Detection
+The mission contains four flag classes:
 
-The current integrated detector is configured for a **yellow triangular
-flag**.
+```text
+PINK
+YELLOW
+ORANGE
+BLUE
+```
 
-Example HSV range:
+YOLO replaces the previous HSV color-thresholding and contour-based OpenCV detector.
 
-``` python
-COLOR_RANGES = {
-    "YELLOW": [
-        (
-            np.array([25, 100, 100]),
-            np.array([38, 255, 255])
-        )
-    ]
+The new architecture is:
+
+```text
+OAK-D CAMERA
+     |
+     v
+YOLO MODEL
+     |
+     v
+CLASS + CONFIDENCE + BOUNDING BOX
+     |
+     v
+FLAG DETECTION DICTIONARY
+     |
+     v
+FlagMissionPart
+     |
+     v
+TRACK -> HIT -> REVERSE
+     |
+     v
+FlagDriveSelector
+     |
+     v
+VESC
+```
+
+## YOLO Output Format
+
+The important part of the YOLO integration is converting each detection into the same format already expected by `FlagMissionPart`.
+
+```python
+{
+    "color": color_name,
+    "cx": center_x,
+    "cy": center_y,
+    "x": x1,
+    "y": y1,
+    "w": x2 - x1,
+    "h": y2 - y1,
+    "area": (x2 - x1) * (y2 - y1)
 }
 ```
 
-Triangle filtering:
+Because the rest of the mission already consumes this format, the GPS and flag-control logic does not need to be rewritten.
 
-``` python
-peri = cv2.arcLength(contour, True)
-approx = cv2.approxPolyDP(contour, 0.04 * peri, True)
+---
 
-if len(approx) != 3:
-    continue
+## YOLO Detection Logic
+
+A starting confidence threshold is:
+
+```python
+YOLO_CONFIDENCE = 0.50
 ```
 
-## Flag Mission Parameters
+Conceptually:
 
-``` python
-MIN_AREA = 800
-SPOTTED_FRAMES = 5
-CAPTURE_AREA = 30000
-LOST_FRAMES_FOR_CAPTURE = 8
-LOST_FRAMES_BEFORE_ABORT = 30
+```python
+def detect_flag(frame):
+    results = model(frame)
+
+    best_detection = None
+    best_confidence = 0.0
+
+    for result in results:
+        for box in result.boxes:
+
+            confidence = float(box.conf[0])
+
+            if confidence < YOLO_CONFIDENCE:
+                continue
+
+            class_id = int(box.cls[0])
+
+            color_name = model.names[class_id].upper()
+
+            if color_name not in {
+                "PINK",
+                "YELLOW",
+                "ORANGE",
+                "BLUE"
+            }:
+                continue
+
+            x1, y1, x2, y2 = map(
+                int,
+                box.xyxy[0].tolist()
+            )
+
+            if confidence > best_confidence:
+
+                best_confidence = confidence
+
+                best_detection = {
+                    "color": color_name,
+                    "cx": (x1 + x2) // 2,
+                    "cy": (y1 + y2) // 2,
+                    "x": x1,
+                    "y": y1,
+                    "w": x2 - x1,
+                    "h": y2 - y1,
+                    "area": (x2 - x1) * (y2 - y1)
+                }
+
+    return best_detection
+```
+
+The exact model-loading code depends on the exported YOLO model format, such as:
+
+```text
+.pt
+.onnx
+.blob
+```
+
+---
+
+# Flag Mission State Machine
+
+The YOLO model handles detection only.
+
+The existing flag mission handles vehicle behavior:
+
+```text
+GPS
+ |
+ | flag detected
+ v
+TRACKING
+ |
+ | close + centered
+ v
+HIT
+ |
+ | flag disappears / timeout
+ v
+REVERSE
+ |
+ | reverse complete
+ v
+GPS
+```
+
+## Mission Parameters
+
+```python
+MIN_AREA = 250
+TRIGGER_AREA = 1000
+SPOTTED_FRAMES = 3
 
 IMAGE_WIDTH = 640
 IMAGE_HEIGHT = 480
 IMAGE_CENTER = 320
 CENTER_DEADBAND = 35
 
-APPROACH_THROTTLE = 0.10
-CAPTURE_THROTTLE = 0.18
+APPROACH_THROTTLE = 0.18
+HIT_THROTTLE = 0.18
+REVERSE_THROTTLE = -0.15
+
 STEERING_GAIN = 0.0020
 MAX_STEERING = 0.35
-DRIVE_THROUGH_TIME = 1.5
+
+HIT_START_AREA = 30000
+
+LOST_FRAMES_FOR_KNOCKDOWN = 8
+LOST_FRAMES_BEFORE_ABORT = 30
+
+MAX_HIT_TIME = 2.0
+REVERSE_TIME = 3
+
+YOLO_CONFIDENCE = 0.50
 
 SPEAKER_DEVICE = "plughw:2,0"
 ```
 
-## Flag Override Architecture
+YOLO bounding-box area replaces the old OpenCV contour area:
 
-Integrated flag logic is in:
-
-``` text
-~/gpscar/flag_override.py
+```python
+area = (x2 - x1) * (y2 - y1)
 ```
 
-The selector behavior is:
+This means the existing distance/approach logic can still use apparent flag size.
 
-``` python
+---
+
+# Flag Override Integration
+
+Current integrated flag logic:
+
+```text
+~/gpscar/flag_override_new.py
+```
+
+`manage.py` imports:
+
+```python
+from flag_override_new import FlagMissionPart, FlagDriveSelector
+```
+
+The mission part is added to the DonkeyCar pipeline:
+
+```python
+flag_mission = FlagMissionPart()
+
+V.add(
+    flag_mission,
+    inputs=['pos/x', 'pos/y'],
+    outputs=[
+        'flag/active',
+        'flag/steering',
+        'flag/throttle'
+    ],
+    threaded=True
+)
+```
+
+The selector receives both GPS control and flag control:
+
+```python
+V.add(
+    FlagDriveSelector(),
+    inputs=[
+        'user/mode',
+        'base/steering',
+        'base/throttle',
+        'flag/active',
+        'flag/steering',
+        'flag/throttle'
+    ],
+    outputs=['steering', 'throttle']
+)
+```
+
+Selector behavior:
+
+```python
 if (
     user_mode == "local"
-    and
-    flag_active
+    and flag_active
 ):
     return (
         flag_steering,
@@ -325,193 +497,213 @@ return (
 )
 ```
 
-The flag mission therefore overrides GPS steering/throttle only when
-DonkeyCar is in `local` mode and a flag mission is active. Otherwise,
-GPS retains control.
+Therefore:
 
-## Audio Output
+```text
+NO FLAG
+   |
+   v
+GPS CONTROLS CAR
 
-The Jabra SPEAK 510 can be tested with:
 
-``` bash
-espeak --stdout "yellow flag captured" | aplay -D plughw:2,0
+FLAG ACTIVE + LOCAL MODE
+   |
+   v
+FLAG CONTROLLER OVERRIDES GPS
 ```
 
-The ALSA device number can change after USB devices are reconnected.
+When the flag mission finishes reversing:
 
-## Troubleshooting
-
-### `path is none; cannot calculate nearest points`
-
-If the terminal repeatedly shows:
-
-``` text
-ERROR:root:path is none; cannot calculate nearest points
-INFO:root:no nearest point ...
-INFO:root:CTE: 0.0 steer: 0.0 throttle: 0.15
+```text
+flag_active = False
 ```
 
-the running path follower does not have a usable path.
+and control automatically returns to GPS.
 
-Check that the path was actually recorded, saved, and loaded. A file
-existing on disk does not necessarily mean it contains a complete lap.
+---
 
-### `donkey_path.csv` exists but contains almost nothing
+# Audio Output
 
-Check:
+The Jabra SPEAK 510 is used for flag announcements.
 
-``` bash
-wc -l ~/gpscar/donkey_path.csv
+Example:
+
+```bash
+espeak --stdout "blue flag captured" | aplay -D plughw:2,0
 ```
 
-One failed recording produced a 65-byte file containing only one point:
+Speaker device:
 
-``` text
-0.011470377037767321, -0.4490042310208082, 3.051850947599719e-05
+```text
+plughw:2,0
 ```
 
-That was not a usable lap. The successful rerecording contained 352
-lines.
+The ALSA device number can change after reconnecting USB hardware.
 
-### Car immediately diverges from the path
+---
 
-Do not immediately retune the PID. First verify:
+# Troubleshooting
 
--   Correct path is loaded
--   GPS origin was reset with B at the correct physical start
--   Vehicle is positioned and oriented correctly
--   Path contains a complete lap
--   Manual steering direction is correct
--   VESC steering scale and offset are correct
+## Huge CTE When Starting Autonomous Mode
 
-During development, several PID changes failed to solve a bad run.
-Rerecording a clean GPS path with the correct origin procedure restored
-successful path following.
+If GPS positions look like:
 
-### Huge CTE immediately after autonomous mode begins
+```text
+477976, 3638157
+```
 
-This usually indicates a coordinate-frame/origin mismatch.
+while the saved path contains coordinates near:
 
-Return to `user`, place the vehicle at the recorded starting point, and
-reset the local GPS origin with **B** before autonomous operation.
+```text
+0, 0
+```
 
-### F710 suddenly stops behaving correctly
+the GPS origin was not reset.
 
-Check the physical **X/D** switch. Team 7 uses **X mode**.
+Return to `user`, place the vehicle at the original starting point, and press:
+
+```text
+B
+```
+
+once.
+
+Then verify `pos/x` and `pos/y` are near zero before entering autonomous mode.
+
+---
+
+## Car Detects Flag but Stops Moving
+
+The flag controller replaces GPS throttle while tracking.
+
+If:
+
+```python
+APPROACH_THROTTLE
+```
+
+is below the drivetrain's usable throttle range, the vehicle may detect and steer toward the flag but not physically move.
+
+The current value is:
+
+```python
+APPROACH_THROTTLE = 0.18
+```
+
+---
+
+## Debugging Flag Detection
+
+A useful temporary debug message inside the camera thread is:
+
+```python
+if detection is not None:
+    print(
+        f"CAM DETECT {detection['color']} | "
+        f"area={int(detection['area'])} | "
+        f"cx={detection['cx']}"
+    )
+```
+
+Expected output:
+
+```text
+CAM DETECT BLUE | area=15447 | cx=289
+```
+
+This verifies that the camera and detector are producing detections before the vehicle-control logic is considered.
+
+---
+
+## F710 Stops Working
+
+Check the physical **X/D** switch.
+
+Team 7 uses:
+
+```text
+X mode
+```
 
 The controller normally appears at:
 
-``` text
+```text
 /dev/input/js0
 ```
 
-If changing modes does not take effect, stop DonkeyCar before
-reconnecting the receiver or power-cycling the controller.
+---
 
-### START button does not change mode
+## OAK-D / DepthAI API Errors
 
-If buttons such as B still work, DonkeyCar is receiving some controller
-input. Check the F710 mode and button mapping before changing GPS or PID
-settings.
+The DonkeyCar `(env)` environment uses the DepthAI 2.x API.
 
-### OAK-D / DepthAI API errors
+Use:
 
-The DonkeyCar environment uses a DepthAI 2.x API. A standalone script
-written against another DepthAI API can fail even when the integrated
-detector works.
-
-Avoid modifying a known-working integrated detector solely to make an
-older standalone test compatible.
-
-## Known Working GPS Sequence
-
-``` text
-Start Point One RTK runner
-        |
-        v
-Start manage.py
-        |
-        v
-USER MODE
-        |
-        v
-B: reset origin
-        |
-        v
-LB: start recording
-        |
-        v
-Drive smooth manual lap
-        |
-        v
-LB: stop recording
-        |
-        v
-RB: save path
-        |
-        v
-Return to exact start
-        |
-        v
-B: reset origin again
-        |
-        v
-START: local_angle
-        |
-        v
-Verify steering
-        |
-        v
-START: local
-        |
-        v
-Autonomous GPS path following
+```bash
+conda deactivate
+source ~/env/bin/activate
+cd ~/gpscar
 ```
 
-## Repository Structure
+before running the integrated camera/DonkeyCar software.
 
-``` text
+---
+
+# Repository Structure
+
+```text
 gpscar/
 ├── manage.py
 ├── myconfig.py
 ├── flag_override.py
-└── donkey_path.csv
+├── flag_override_new.py
+├── donkey_path.csv
+└── models/
+    └── <YOLO_MODEL_FILE>
 ```
 
-## Security
+---
+
+# Security
 
 Do **not** commit:
 
--   Point One device credentials
--   Polaris passwords
--   API keys
--   Private tokens
--   Other team or infrastructure secrets
+- Point One device credentials
+- Polaris passwords
+- API keys
+- Roboflow API keys
+- Private tokens
+- Other team or infrastructure secrets
 
-Example `.gitignore` additions:
+Example `.gitignore`:
 
-``` gitignore
+```gitignore
 .env
 *.log
 __pycache__/
 *.pyc
 ```
 
-## Current Status
+---
 
--   [x] Point One RTK GPS receiving corrections
--   [x] GPS position available inside DonkeyCar
--   [x] F710 manual vehicle control
--   [x] GPS origin reset
--   [x] GPS path recording and saving
--   [x] Autonomous GPS path following
--   [x] OAK-D yellow flag detection
--   [x] Triangle filtering
--   [x] Flag approach/capture state machine
--   [x] Jabra audio announcements
--   [x] GPS/flag control selector integration
--   [ ] Final end-to-end GPS + flag mission validation
+# Current Status
 
-## Team
+- [x] Point One RTK GPS receiving corrections
+- [x] GPS position available inside DonkeyCar
+- [x] F710 manual vehicle control
+- [x] GPS origin reset
+- [x] GPS path recording and saving
+- [x] Autonomous GPS path following
+- [x] OAK-D camera integration
+- [x] Four mission flag classes: PINK, YELLOW, ORANGE, BLUE
+- [x] Flag approach / hit / reverse state machine
+- [x] Jabra audio announcements
+- [x] GPS/flag control selector integration
+- [ ] Install/export final YOLO model on Raspberry Pi
+- [ ] Replace HSV `detect_flag()` with YOLO inference
+- [ ] Validate YOLO detections inside `manage.py`
+- [ ] Final end-to-end GPS + YOLO flag mission validation
+
+# Team
 
 **UC San Diego MAE/ECE 148 - Team 7**
