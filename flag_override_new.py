@@ -12,7 +12,7 @@ from ultralytics import YOLO
 
 # Put your trained YOLO weights in ~/gpscar and name them best.pt,
 # OR set YOLO_MODEL_PATH before starting manage.py.
-YOLO_MODEL_PATH = os.environ.get("YOLO_MODEL_PATH", "best.pt")
+YOLO_MODEL_PATH = os.environ.get("YOLO_MODEL_PATH", "weights.pt")
 YOLO_CONFIDENCE = 0.50
 
 VALID_FLAG_CLASSES = {
