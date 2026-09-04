@@ -12,7 +12,7 @@ from ultralytics import YOLO
 
 # Put your trained YOLO weights in ~/gpscar and name them best.pt,
 # OR set YOLO_MODEL_PATH before starting manage.py.
-YOLO_MODEL_PATH = os.environ.get("YOLO_MODEL_PATH", "weights.pt")
+YOLO_MODEL_PATH = os.environ.get("YOLO_MODEL_PATH", "best.pt")
 YOLO_CONFIDENCE = 0.50
 
 VALID_FLAG_CLASSES = {
@@ -48,6 +48,7 @@ MAX_STEERING = 0.35
 HIT_START_AREA = 30000
 LOST_FRAMES_FOR_KNOCKDOWN = 8
 LOST_FRAMES_BEFORE_ABORT = 30
+PAUSE_TIME = 2.0
 MAX_HIT_TIME = 2.0
 REVERSE_TIME = 3.0
 
@@ -166,6 +167,7 @@ class FlagMissionPart:
 
         self.GPS = "GPS"
         self.TRACKING = "TRACKING"
+        self.PAUSE = "PAUSE"
         self.HIT = "HIT"
         self.REVERSE = "REVERSE"
 
@@ -177,13 +179,14 @@ class FlagMissionPart:
         self.active_color = None
         self.lost_frames = 0
 
+        self.pause_start_time = None
         self.hit_start_time = None
         self.reverse_start_time = None
 
         print("")
         print("====================================")
         print(" YOLO FLAG MISSION PART INITIALIZED")
-        print(" GPS -> TRACK -> HIT -> REVERSE -> GPS")
+        print(" GPS -> TRACK -> PAUSE -> HIT -> REVERSE -> GPS")
         print("====================================")
         print("")
         print(f"YOLO MODEL: {YOLO_MODEL_PATH}")
@@ -301,6 +304,8 @@ class FlagMissionPart:
         self.candidate_frames = 0
         self.lost_frames = 0
 
+        self.pause_start_time = None
+        self.pause_start_time = None
         self.hit_start_time = None
         self.reverse_start_time = None
 
@@ -412,22 +417,17 @@ class FlagMissionPart:
                     print("")
                     print("============================")
                     print(
-                        f"HITTING {self.active_color} FLAG"
+                        f"{self.active_color} FLAG CLOSE"
                     )
+                    print("STOPPING FOR 2 SECONDS")
                     print("============================")
                     print("")
 
                     self.flag_steering = 0.0
-                    self.flag_throttle = (
-                        HIT_THROTTLE
-                    )
-
+                    self.flag_throttle = 0.0
                     self.lost_frames = 0
-                    self.hit_start_time = (
-                        time.time()
-                    )
-
-                    self.state = self.HIT
+                    self.pause_start_time = time.time()
+                    self.state = self.PAUSE
 
             else:
 
@@ -453,6 +453,40 @@ class FlagMissionPart:
                     print("")
 
                     self.return_to_gps()
+
+            return
+
+        # ----------------------------------------------------
+        # PAUSE
+        # ----------------------------------------------------
+
+        elif self.state == self.PAUSE:
+
+            self.flag_active = True
+            self.flag_steering = 0.0
+            self.flag_throttle = 0.0
+
+            pause_elapsed = (
+                time.time() - self.pause_start_time
+                if self.pause_start_time is not None
+                else 0.0
+            )
+
+            if pause_elapsed >= PAUSE_TIME:
+
+                print("")
+                print("============================")
+                print(
+                    f"HITTING {self.active_color} FLAG"
+                )
+                print("============================")
+                print("")
+
+                self.flag_steering = 0.0
+                self.flag_throttle = HIT_THROTTLE
+                self.lost_frames = 0
+                self.hit_start_time = time.time()
+                self.state = self.HIT
 
             return
 
