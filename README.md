@@ -515,6 +515,3 @@ __pycache__/
 ## Team
 
 **UC San Diego MAE/ECE 148 - Team 7**
-
-Update this README as the vehicle configuration and final mission
-evolve.
