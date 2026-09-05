@@ -2,6 +2,64 @@
 
 UC San Diego MAE/ECE 148 Team 7 project integrating RTK GPS path following, DonkeyCar autonomous control, OAK-D flag detection, and audio feedback on a Raspberry Pi 5 vehicle.
 
+## Project Information
+
+**Project:** Autonomous Capture the Flag RoboCar  
+**Course:** UC San Diego MAE/ECE 148  
+**Team:** Team 7  
+**Term:** Summer Session II 2026  
+**Repository:** https://github.com/pkorti/capture_the_flag
+
+### Team Members
+
+| Team Member | Major |
+|---|---|
+| Maisarah Fahmy | ECE |
+| Grisvian Tandy | ECE |
+| Pragnya Korti | MAE |
+
+## Project Goal
+
+This project focuses on developing an autonomous RoboCar capable of searching a course for a designated colored flag, navigating toward it, and capturing it by driving through and knocking it down. Using an OAK-D camera with a YOLO color-detection model, the RoboCar searches for the target while completing GPS-guided laps. The system integrates perception, navigation, vehicle control, and synchronized audio feedback so that a speaker announces when the flag has been captured.
+
+The overall goal is to combine **GPS-based global navigation** with **camera-based local flag detection and approach behavior** on a single autonomous vehicle.
+
+## Project Requirements
+
+### Must Haves
+
+The final project requirements were to:
+
+1. Autonomously complete GPS-guided laps while searching for the flag.
+2. Detect the designated flag color using the OAK-D camera and YOLO.
+3. Navigate toward the detected flag.
+4. Drive through and knock down the flag.
+5. Play a synchronized voice announcement after capture.
+6. Use generative AI for code development, debugging, and integration.
+
+### Nice to Haves
+
+The team also identified the following stretch goals:
+
+| Nice-to-have feature | Final project status |
+|---|---|
+| Return to the starting point after all captures and stop automatically | Not completed; return-to-home remained future work |
+| Remember previously searched areas | Not completed; identified as a future search-behavior improvement |
+| Detection across different lighting conditions, including night | Partially addressed; YOLO improved reliability across changing outdoor lighting, but full night performance was not established |
+| Support multiple designated flag colors | Implemented in the detector with PINK, YELLOW, ORANGE, and BLUE classes |
+| Add obstacle detection with LiDAR | Not implemented |
+
+## Main Contributions
+
+The project combines several subsystems into one autonomous capture-the-flag workflow:
+
+- **RTK GPS path following:** Record a route and use DonkeyCar path following to complete autonomous laps.
+- **YOLO flag detection:** Replace the original fixed-threshold OpenCV detector with a trained YOLO model for more robust flag recognition under changing outdoor conditions.
+- **Autonomous flag approach:** Use the detected flag position and apparent size to steer toward the target and initiate the capture maneuver.
+- **GPS / flag control arbitration:** Allow the flag mission to temporarily override normal GPS driving during a capture attempt.
+- **Audio feedback:** Trigger a spoken announcement when the flag-capture action occurs.
+- **Integrated testing and debugging:** Test navigation, detection, capture, and voice components separately before combining them into the final vehicle pipeline.
+
 ## System Overview
 
 The system combines:
@@ -538,6 +596,83 @@ The ALSA device number can change after reconnecting USB hardware.
 
 ---
 
+
+# Project Results
+
+The sections above describe the implemented system and its intended mission flow. Final outdoor testing showed that several major subsystems worked, while full capture-and-path-recovery behavior was still sensitive to real-world conditions.
+
+## What Worked
+
+### GPS Path Following
+
+The RoboCar successfully followed the recorded GPS route and completed autonomous laps when the path was not interrupted.
+
+### Autonomous Search / Flag Approach
+
+While completing GPS-guided laps, the RoboCar searched for the flag. Once YOLO detected a target, the integrated control logic could change steering toward the detected flag.
+
+### YOLO Flag Detection
+
+YOLO flag detection was more reliable across changing outdoor lighting conditions than the team's original OpenCV color-thresholding approach. The original method depended on fixed color thresholds, which were too sensitive to sunlight, shadows, and other environmental changes.
+
+### Voice Integration
+
+The combined scripts successfully triggered a voice announcement when the RoboCar performed the flag-capture action.
+
+## Challenges and What Did Not Work Reliably
+
+### OpenCV Color Detection
+
+The original OpenCV detector used fixed color thresholds and did not detect the flags reliably enough under real outdoor conditions. It was replaced by the YOLO model.
+
+### Changing Outdoor Lighting
+
+Sunlight, shadows, weather, and time-of-day changes altered the appearance of the flags throughout testing and reduced detection consistency.
+
+### Camera Configuration
+
+The OAK-D camera was sometimes overexposed or produced inconsistent resolution/configuration behavior, which made reliable detection and capture more difficult.
+
+### Driving Oscillation and RTK Fix
+
+When the vehicle lost a stable RTK fix, it could oscillate or veer away from the intended course. Even with PID tuning, this could cause the target flag to leave the camera's field of view.
+
+### Physical Flag Design
+
+The physical flag had to resist wind while still being easy enough for the RoboCar to knock down. The original supports were not consistently stable, so the mechanical design also affected capture reliability.
+
+### Capture and GPS Path Recovery
+
+Driving through the flag changed the RoboCar's heading. Although the software architecture returns control to GPS after the capture sequence, final testing showed that the vehicle did **not consistently recover back onto its original GPS path after capture**.
+
+This is an important distinction between the implemented control flow and the reliability observed during final outdoor testing.
+
+# Lessons Learned
+
+The final project produced four main takeaways:
+
+1. **Real-world conditions matter.** Lighting, weather, GPS accuracy, camera behavior, and physical course conditions significantly affected autonomous performance.
+2. **Test components separately.** Testing navigation, detection, voice, and capture independently made integration and debugging easier.
+3. **Choose robust solutions.** YOLO detection was more reliable than fixed OpenCV color thresholds for this outdoor application.
+4. **Prioritize reliability.** Consistent performance in real conditions was more valuable than perfect results under controlled conditions.
+
+# Future Improvements
+
+With additional development time, the team would focus on:
+
+- Expanding the YOLO training dataset with images collected under different lighting conditions, distances, and viewing angles.
+- Improving OAK-D exposure and resolution settings.
+- Improving the RoboCar's search behavior so it can scan more of the surrounding environment.
+- Tracking previously searched areas to reduce repeated searching.
+- Further tuning the GPS PID controller.
+- Adjusting throttle during sharp corrections and adding steering smoothing to reduce oscillation.
+- Improving search and approach logic so the vehicle can recover from temporary missed detections.
+- Redesigning the physical capture mechanism and flag supports for better wind resistance and repeatability.
+- Performing additional full-system outdoor testing.
+- Developing reliable return-to-home behavior after the mission is complete.
+
+---
+
 # Troubleshooting
 
 ## Huge CTE When Starting Autonomous Mode
@@ -700,6 +835,14 @@ __pycache__/
 - [x] Validate YOLO detections inside `manage.py`
 - [x] Final end-to-end GPS + YOLO flag mission validation
 
+> **Final testing note:** The major components were implemented and integrated, but the final presentation reports that outdoor capture-to-GPS-path recovery was not consistently reliable, especially after the RoboCar drove through a flag and its heading changed.
+
 # Team
 
 **UC San Diego MAE/ECE 148 - Team 7**
+
+**Summer Session II 2026**
+
+- **Maisarah Fahmy** — ECE
+- **Grisvian Tandy** — ECE
+- **Pragnya Korti** — MAE
