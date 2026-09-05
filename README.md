@@ -1,6 +1,6 @@
 # Team 7 Autonomous GPS + YOLO Flag Detection Robot
 
-UC San Diego MAE/ECE 148 Team 7 project integrating RTK GPS path following, DonkeyCar autonomous control, OAK-D flag detection, and audio feedback on a Raspberry Pi 5 vehicle.
+UC San Diego MAE/ECE 148 Team 7 project integrating RTK GPS path following, DonkeyCar autonomous control, OAK-D flag detection, and audio announcement on a Raspberry Pi 5 vehicle.
 
 ## Project Information
 
@@ -20,7 +20,7 @@ UC San Diego MAE/ECE 148 Team 7 project integrating RTK GPS path following, Donk
 
 ## Project Goal
 
-This project focuses on developing an autonomous RoboCar capable of searching a course for a designated colored flag, navigating toward it, and capturing it by driving through and knocking it down. Using an OAK-D camera with a YOLO color-detection model, the RoboCar searches for the target while completing GPS-guided laps. The system integrates perception, navigation, vehicle control, and synchronized audio feedback so that a speaker announces when the flag has been captured.
+This project focuses on developing an autonomous RoboCar capable of searching a course for a designated colored flag, navigating toward it, and capturing it by driving through and knocking it down. Using an OAK-D camera with a YOLO flag color-detection model, the RoboCar searches for the target while completing GPS-guided laps. The system integrates perception, navigation, vehicle control, and synchronized audio feedback so that a speaker announces when the flag has been captured.
 
 The overall goal is to combine **GPS-based global navigation** with **camera-based local flag detection and approach behavior** on a single autonomous vehicle.
 
@@ -66,10 +66,10 @@ The system combines:
 
 - Raspberry Pi 5
 - DonkeyCar
-- Point One Navigation RTK GPS
+- RTK GPS
 - VESC motor/steering controller
 - Logitech F710 gamepad
-- Luxonis OAK-D camera
+- OAK-D camera
 - Jabra SPEAK 510 USB speaker
 - GPS path recording and autonomous path following
 - YOLO-based four-color flag detection
@@ -635,7 +635,7 @@ The OAK-D camera was sometimes overexposed or produced inconsistent resolution/c
 
 ### Driving Oscillation and RTK Fix
 
-When the vehicle lost a stable RTK fix, it could oscillate or veer away from the intended course. Even with PID tuning, this could cause the target flag to leave the camera's field of view.
+When the vehicle lost a stable RTK fix, it could oscillate or stray away from the intended course. Even with PID tuning, this could cause the target flag to leave the camera's field of view.
 
 ### Physical Flag Design
 
@@ -795,28 +795,6 @@ gpscar/
 
 ---
 
-# Security
-
-Do **not** commit:
-
-- Point One device credentials
-- Polaris passwords
-- API keys
-- Roboflow API keys
-- Private tokens
-- Other team or infrastructure secrets
-
-Example `.gitignore`:
-
-```gitignore
-.env
-*.log
-__pycache__/
-*.pyc
-```
-
----
-
 # Steps
 
 - [x] Point One RTK GPS receiving corrections
@@ -835,14 +813,4 @@ __pycache__/
 - [x] Validate YOLO detections inside `manage.py`
 - [x] Final end-to-end GPS + YOLO flag mission validation
 
-> **Final testing note:** The major components were implemented and integrated, but the final presentation reports that outdoor capture-to-GPS-path recovery was not consistently reliable, especially after the RoboCar drove through a flag and its heading changed.
 
-# Team
-
-**UC San Diego MAE/ECE 148 - Team 7**
-
-**Summer Session II 2026**
-
-- **Maisarah Fahmy** — ECE
-- **Grisvian Tandy** — ECE
-- **Pragnya Korti** — MAE
