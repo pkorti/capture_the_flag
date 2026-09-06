@@ -795,6 +795,50 @@ gpscar/
 
 ---
 
+# LLM Prompts Used During This Project
+
+The following LLM prompts were used during the development, debugging, and integration of this project.
+
+### 1. GPS Autonomous Navigation
+
+Set up the robot to use **PointOne RTK GPS** for autonomous navigation. The system should be able to record a manually driven route, save that route, reset its origin at the starting position, and then autonomously follow the recorded GPS loop. The GPS system should remain the robot's normal navigation method whenever no flag mission is active.
+
+### 2. Camera-Based Flag Detection
+
+Use the **OAK-D camera** to detect mission flags while the robot is driving. The required flag colors are **pink, yellow, orange, and blue**. Detection was initially implemented using OpenCV/color thresholding, but the final approach should use a **YOLO object-detection model**. Detection should identify the flag's color, location in the camera image, approximate size, and confidence without unnecessary filtering or overly restrictive detection rules.
+
+### 3. GPS and Flag-Mission Integration
+
+The robot should continuously follow its GPS route until a valid flag is detected. Once a flag is confirmed, the flag mission should temporarily **override GPS steering and throttle commands**. After the flag mission finishes, control should automatically return to GPS navigation so the robot can continue following the original loop.
+
+### 4. Flag Approach and Steering
+
+After detecting a flag, the robot should actively drive toward it rather than simply stopping or waiting. The camera should determine whether the flag is to the left or right of the center of the image, and the robot should steer accordingly while continuing to move forward. As the flag becomes larger in the camera image, the system should recognize that the robot is getting closer.
+
+### 5. Flag Capture Sequence
+
+The required behavior for each flag is:
+
+**Detect flag → announce “[color] flag spotted” → approach and center on flag → stop for approximately 2 seconds → drive forward through the flag → determine that the flag has been knocked down/captured → announce “[color] flag captured” → reverse to clear the flag → return to GPS navigation.**
+
+The 2-second stop must occur **after approaching the flag and before driving through it**, rather than immediately after the initial detection.
+
+### 6. Lost-Flag Behavior
+
+If the flag disappears while the robot is still approaching and has not reached the capture stage, the robot should eventually abandon the attempt and return to GPS rather than wandering around searching for it. No sweeping or dedicated flag-search behavior is required. If the flag disappears after the robot has already begun driving through it, that disappearance can be used as evidence that the flag has been knocked down.
+
+### 7. Audio Feedback
+
+A **Jabra USB speaker** should provide audible mission feedback. Each of the four colors should have both a spotted and captured announcement, such as **“blue flag spotted”** and **“blue flag captured.”** The announcements should correspond to actual mission-state transitions rather than repeatedly playing every frame that a flag remains visible.
+
+### 8. Standalone Flag Testing
+
+The flag-detection system should also be testable independently from the GPS/autonomous-driving system. A camera-only test should allow YOLO detection and the associated flag information/audio to be checked without starting GPS navigation or commanding the motors.
+
+### 9. Safety and Implementation Requirements
+
+The existing working GPS navigation should be preserved while flag functionality is added. Changes should be minimal and focused rather than restructuring the entire DonkeyCar system. Flag control should only override navigation during an active autonomous flag mission, and testing should distinguish clearly between **camera-only tests that cannot move the robot** and **integrated tests capable of commanding steering and throttle**.
+
 # Steps
 
 - [x] Point One RTK GPS receiving corrections
