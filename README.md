@@ -821,7 +821,6 @@ The required behavior for each flag is:
 
 **Detect flag → announce “[color] flag spotted” → approach and center on flag → stop for approximately 2 seconds → drive forward through the flag → determine that the flag has been knocked down/captured → announce “[color] flag captured” → reverse to clear the flag → return to GPS navigation.**
 
-The 2-second stop must occur **after approaching the flag and before driving through it**, rather than immediately after the initial detection.
 
 ### 6. Lost-Flag Behavior
 
@@ -829,7 +828,7 @@ If the flag disappears while the robot is still approaching and has not reached 
 
 ### 7. Audio Feedback
 
-A **Jabra USB speaker** should provide audible mission feedback. Each of the four colors should have both a spotted and captured announcement, such as **“blue flag spotted”** and **“blue flag captured.”** The announcements should correspond to actual mission-state transitions rather than repeatedly playing every frame that a flag remains visible.
+A **Jabra USB speaker** should provide audible mission feedback. Each of the four colors should have both a spotted and captured announcement, such as **“blue flag spotted”** and **“blue flag captured.”** The announcements should correspond to actual mission-state transitions.
 
 ### 8. Standalone Flag Testing
 
